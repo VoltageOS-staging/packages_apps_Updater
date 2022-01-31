@@ -47,9 +47,9 @@ public class FileUtils {
     }
 
     private static class CallbackByteChannel implements ReadableByteChannel {
-        private ProgressCallBack mCallback;
-        private long mSize;
-        private ReadableByteChannel mReadableByteChannel;
+        private final ProgressCallBack mCallback;
+        private final long mSize;
+        private final ReadableByteChannel mReadableByteChannel;
         private long mSizeRead;
         private int mProgress;
 
@@ -99,14 +99,11 @@ public class FileUtils {
         } catch (IOException e) {
             Log.e(TAG, "Could not copy file", e);
             if (destFile.exists()) {
+                //noinspection ResultOfMethodCallIgnored
                 destFile.delete();
             }
             throw e;
         }
-    }
-
-    public static void copyFile(File sourceFile, File destFile) throws IOException {
-        copyFile(sourceFile, destFile, null);
     }
 
     public static String getRealPath(Context context, Uri uri) {
