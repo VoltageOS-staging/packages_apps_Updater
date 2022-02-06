@@ -15,10 +15,12 @@
  */
 package com.voltage.updater;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
+import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
@@ -38,6 +40,8 @@ import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.view.ContextThemeWrapper;
@@ -48,17 +52,15 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.snackbar.Snackbar;
 
-import com.voltage.updater.controller.UpdaterController;
-import com.voltage.updater.controller.UpdaterService;
-import com.voltage.updater.misc.BuildInfoUtils;
-import com.voltage.updater.misc.Constants;
-import com.voltage.updater.misc.PermissionsUtils;
-import com.voltage.updater.misc.StringGenerator;
-import com.voltage.updater.misc.Utils;
-import com.voltage.updater.model.UpdateInfo;
-import com.voltage.updater.model.UpdateStatus;
+import org.voltage.updater.controller.UpdaterController;
+import org.voltage.updater.controller.UpdaterService;
+import org.voltage.updater.misc.BuildInfoUtils;
+import org.voltage.updater.misc.Constants;
+import org.voltage.updater.misc.StringGenerator;
+import org.voltage.updater.misc.Utils;
+import org.voltage.updater.model.UpdateInfo;
+import org.voltage.updater.model.UpdateStatus;
 
-import java.io.File;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.NumberFormat;
@@ -80,6 +82,8 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
     private final UpdatesListActivity mActivity;
 
     private AlertDialog infoDialog;
+
+    private UpdateInfo mToBeExported = null;
 
     private enum Action {
         DOWNLOAD,
@@ -524,12 +528,7 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
                         mActivity.getString(R.string.toast_download_url_copied));
                 return true;
             } else if (itemId == R.id.menu_export_update) {
-                // TODO: start exporting once the permission has been granted
-                boolean hasPermission = PermissionsUtils.checkAndRequestStoragePermission(
-                        mActivity, 0);
-                if (hasPermission) {
-                    exportUpdate(update);
-                }
+                exportUpdate(update);
                 return true;
             }
             return false;
@@ -540,14 +539,35 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
     }
 
     private void exportUpdate(UpdateInfo update) {
-        File dest = new File(Utils.getExportPath(mActivity), update.getName());
-        if (dest.exists()) {
-            dest = Utils.appendSequentialNumber(dest);
+        if (mActivity == null) {
+            return;
         }
+        mToBeExported = update;
+        ActivityResultLauncher<Intent> resultLauncher = mActivity.registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK) {
+                        Intent intent = result.getData();
+                        if (intent != null) {
+                            Uri uri = intent.getData();
+                            exportUpdate(uri);
+                        }
+                    }
+                });
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        intent.putExtra(Intent.EXTRA_TITLE, update.getName());
+
+        resultLauncher.launch(intent);
+    }
+
+    private void exportUpdate(Uri uri) {
         Intent intent = new Intent(mActivity, ExportUpdateService.class);
         intent.setAction(ExportUpdateService.ACTION_START_EXPORTING);
-        intent.putExtra(ExportUpdateService.EXTRA_SOURCE_FILE, update.getFile());
-        intent.putExtra(ExportUpdateService.EXTRA_DEST_FILE, dest);
+        intent.putExtra(ExportUpdateService.EXTRA_SOURCE_FILE, mToBeExported.getFile());
+        intent.putExtra(ExportUpdateService.EXTRA_DEST_URI, uri);
         mActivity.startService(intent);
     }
 
