@@ -17,6 +17,7 @@ package com.voltage.updater;
 
 import android.app.Activity;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.UiModeManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -45,6 +46,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.SwitchCompat;
@@ -92,7 +95,18 @@ public class UpdatesActivity extends UpdatesListActivity {
 
     private boolean mIsTV;
 
-    private static final int READ_REQUEST_CODE = 42;
+    private UpdateInfo mToBeExported = null;
+    private final ActivityResultLauncher<Intent> mExportUpdate = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent intent = result.getData();
+                    if (intent != null) {
+                        Uri uri = intent.getData();
+                        exportUpdate(uri);
+                    }
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -407,6 +421,26 @@ public class UpdatesActivity extends UpdatesListActivity {
                 showSnackbar(R.string.snack_download_verified, Snackbar.LENGTH_LONG);
                 break;
         }
+    }
+
+    @Override
+    public void exportUpdate(UpdateInfo update) {
+        mToBeExported = update;
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        intent.putExtra(Intent.EXTRA_TITLE, update.getName());
+
+        mExportUpdate.launch(intent);
+    }
+
+    private void exportUpdate(Uri uri) {
+        Intent intent = new Intent(this, ExportUpdateService.class);
+        intent.setAction(ExportUpdateService.ACTION_START_EXPORTING);
+        intent.putExtra(ExportUpdateService.EXTRA_SOURCE_FILE, mToBeExported.getFile());
+        intent.putExtra(ExportUpdateService.EXTRA_DEST_URI, uri);
+        startService(intent);
     }
 
     @Override
