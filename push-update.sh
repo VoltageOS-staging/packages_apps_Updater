@@ -6,7 +6,7 @@ if [ ! -f "$1" ]; then
    echo "Usage: $0 ZIP [UNVERIFIED]"
    echo "Push ZIP to $updates_dir and add it to Updater"
    echo
-   echo "The name of ZIP is assumed to have voltage-VERSION-DATE-TYPE-* as format"
+   echo "The name of ZIP is assumed to have voltage-VERSION-DEVICE-DATE-TIME-TYPE.zip as format"
    echo "If UNVERIFIED is set, the app will verify the update"
    exit
 fi
@@ -33,12 +33,15 @@ else
     status=2
 fi
 
-# Assume voltage-VERSION-DATE-TYPE-*.zip
+# Assume voltage-VERSION-DEVICE-DATE-TIME-TYPE.zip
 zip_name=`basename "$zip_path"`
 id=`echo "$zip_name" | sha1sum | cut -d' ' -f1`
 version=`echo "$zip_name" | cut -d'-' -f2`
-type=`echo "$zip_name" | cut -d'-' -f4`
-build_date=`echo "$zip_name" | cut -d'-' -f3 | cut -d'_' -f1`
+base=${zip_name%.zip}
+type=${base##*-}
+stem=${base%-*}
+build_date=${stem%-*}
+build_date=${build_date##*-}
 if [ "`uname`" = "Darwin" ]; then
     timestamp=`date -jf "%Y%m%d %H:%M:%S" "$build_date 23:59:59" +%s`
     size=`stat -f%z "$zip_path"`
